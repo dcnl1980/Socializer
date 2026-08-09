@@ -8,6 +8,13 @@
       "when": 1786277710077,
       "tag": "0000_omniscient_valkyrie",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1786280059128,
+      "tag": "0001_sticky_boomer",
+      "breakpoints": true
     }
   ]
 }

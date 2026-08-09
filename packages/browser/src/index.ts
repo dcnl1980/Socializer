@@ -6,6 +6,9 @@ export type {
   EnrichmentActions,
   LinkedInActions,
   OpenSeatSessionInput,
+  PageLike,
+  PostComment,
+  TrendPost,
 } from "./types.js";
 export { createBrowserAdapter } from "./adapter.js";
 export { createLinkedInActions } from "./linkedin.js";
@@ -15,3 +18,5 @@ export {
   FakeEnrichmentActions,
   FakeLinkedInActions,
 } from "./fake.js";
+export { openPersistentSession } from "./session.js";
+export { parseProxyUrl } from "./proxy.js";

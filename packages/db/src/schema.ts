@@ -93,6 +93,13 @@ export const linkedinSeats = pgTable("linkedin_seats", {
   dailyCapMin: integer("daily_cap_min").notNull().default(10),
   dailyCapMax: integer("daily_cap_max").notNull().default(20),
   actionsUsedToday: integer("actions_used_today").notNull().default(0),
+  actionsUsedOutboundToday: integer("actions_used_outbound_today")
+    .notNull()
+    .default(0),
+  actionsUsedContentToday: integer("actions_used_content_today")
+    .notNull()
+    .default(0),
+  outboundBudgetPercent: integer("outbound_budget_percent").notNull().default(60),
   dailyCapPicked: integer("daily_cap_picked").notNull().default(15),
   capDay: text("cap_day"),
   createdAt: timestamp("created_at", { withTimezone: true })
@@ -146,7 +153,66 @@ export const campaigns = pgTable("campaigns", {
     .references(() => workspaces.id),
   name: text("name").notNull(),
   type: campaignTypeEnum("type").notNull().default("outbound"),
+  seatId: uuid("seat_id").references(() => linkedinSeats.id),
+  config: jsonb("config")
+    .$type<{
+      keywords?: string[];
+      brandVoice?: string;
+      niche?: string;
+    }>()
+    .notNull()
+    .default({}),
   createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const contentPostStatusEnum = pgEnum("content_post_status", [
+  "draft",
+  "scheduled",
+  "published",
+  "failed",
+]);
+
+export const contentPosts = pgTable("content_posts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  campaignId: uuid("campaign_id")
+    .notNull()
+    .references(() => campaigns.id),
+  seatId: uuid("seat_id")
+    .notNull()
+    .references(() => linkedinSeats.id),
+  status: contentPostStatusEnum("status").notNull().default("draft"),
+  topic: text("topic"),
+  prompt: text("prompt"),
+  body: text("body"),
+  postUrl: text("post_url"),
+  metrics: jsonb("metrics").$type<Record<string, number>>().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+});
+
+export const trendSnapshots = pgTable("trend_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  seatId: uuid("seat_id")
+    .notNull()
+    .references(() => linkedinSeats.id),
+  campaignId: uuid("campaign_id").references(() => campaigns.id),
+  keyword: text("keyword").notNull(),
+  payload: jsonb("payload")
+    .$type<Array<{ url: string; text: string; reactions: number; comments: number }>>()
+    .notNull()
+    .default([]),
+  score: integer("score").notNull().default(0),
+  capturedAt: timestamp("captured_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
 });
@@ -209,6 +275,8 @@ export const actionJobs = pgTable("action_jobs", {
     .references(() => linkedinSeats.id),
   enrollmentId: uuid("enrollment_id").references(() => enrollments.id),
   leadId: uuid("lead_id").references(() => leads.id),
+  contentPostId: uuid("content_post_id").references(() => contentPosts.id),
+  campaignId: uuid("campaign_id").references(() => campaigns.id),
   stepType: text("step_type").notNull(),
   status: jobStatusEnum("status").notNull().default("queued"),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true })

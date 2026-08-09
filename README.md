@@ -11,7 +11,25 @@ Internal LinkedIn growth OS (Slice 1): cloud workers, sticky proxies, outbound `
 - **Extension:** MV3 capture-only (`apps/extension`)
 
 Design: `docs/superpowers/specs/2026-08-09-socializer-linkedin-automation-design.md`  
-Plan: `docs/superpowers/plans/2026-08-09-socializer-slice1-core-outbound.md`
+Plans:
+- Slice 1: `docs/superpowers/plans/2026-08-09-socializer-slice1-core-outbound.md`
+- Slice 2: `docs/superpowers/plans/2026-08-09-socializer-slice2-browsers-content.md`
+
+## Slice 2 — Content growth
+
+Operator UI at `/content`:
+1. Create a content campaign (keywords, niche, brand voice, seat)
+2. **Run full loop** → scout trends → AI draft → publish → boost → reply
+3. Caps: default **60% outbound / 40% content** per seat daily budget
+
+## Real browsers
+
+CI and local default use `BROWSER_ENGINE=fake`. On a worker host with Google Chrome + sticky proxy:
+
+```bash
+pnpm --filter @socializer/browser add patchright cloakbrowser
+# set seat browserEngine to patchright (LinkedIn) or cloakbrowser (enrichment)
+```
 
 ## Quick start
 

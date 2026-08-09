@@ -6,6 +6,8 @@ import type {
   EnrichmentActions,
   LinkedInActions,
   OpenSeatSessionInput,
+  PostComment,
+  TrendPost,
 } from "./types.js";
 
 export class FakeBrowserAdapter implements BrowserAdapter {
@@ -20,6 +22,26 @@ export class FakeBrowserAdapter implements BrowserAdapter {
 
 const sharedConnected = new Set<string>();
 const sharedMessages: Array<{ profileUrl: string; body: string }> = [];
+const sharedLikes = new Set<string>();
+const sharedComments: Array<{ postUrl: string; text: string }> = [];
+const sharedPublished: Array<{ url: string; text: string }> = [];
+const sharedFeed: TrendPost[] = [
+  {
+    url: "https://www.linkedin.com/feed/update/urn:li:activity:trend-1",
+    text: "AI agents are rewriting B2B outbound workflows this quarter.",
+    reactions: 420,
+    comments: 55,
+  },
+  {
+    url: "https://www.linkedin.com/feed/update/urn:li:activity:trend-2",
+    text: "Founders who post weekly compound trust faster than cold email alone.",
+    reactions: 310,
+    comments: 40,
+  },
+];
+const sharedPostComments = new Map<string, PostComment[]>();
+const sharedReplies: Array<{ postUrl: string; commentId: string; text: string }> =
+  [];
 
 export class FakeLinkedInActions implements LinkedInActions {
   autoAccept = true;
@@ -28,7 +50,7 @@ export class FakeLinkedInActions implements LinkedInActions {
     if (this.autoAccept) sharedConnected.add(profileUrl);
     return {
       ok: true,
-      detail: note ? `connect_sent_with_note` : "connect_sent",
+      detail: note ? "connect_sent_with_note" : "connect_sent",
     };
   }
 
@@ -48,13 +70,68 @@ export class FakeLinkedInActions implements LinkedInActions {
     return { ok: true, detail: "withdrawn_none" };
   }
 
+  async likePost(postUrl: string): Promise<ActionResult> {
+    sharedLikes.add(postUrl);
+    return { ok: true, detail: "liked" };
+  }
+
+  async commentOnPost(postUrl: string, text: string): Promise<ActionResult> {
+    sharedComments.push({ postUrl, text });
+    return { ok: true, detail: "commented" };
+  }
+
+  async publishPost(text: string): Promise<ActionResult> {
+    const url = `https://www.linkedin.com/feed/update/urn:li:activity:pub-${sharedPublished.length + 1}`;
+    sharedPublished.push({ url, text });
+    sharedPostComments.set(url, [
+      {
+        id: `${url}#c1`,
+        author: "Alex Prospect",
+        text: "This resonates — how are you measuring it?",
+      },
+    ]);
+    return { ok: true, detail: "published", postUrl: url };
+  }
+
+  async scrapeTrending(keywords: string[], limit: number): Promise<TrendPost[]> {
+    const kw = keywords.map((k) => k.toLowerCase());
+    const filtered = sharedFeed.filter((p) =>
+      kw.length === 0
+        ? true
+        : kw.some((k) => p.text.toLowerCase().includes(k)),
+    );
+    return filtered.slice(0, limit);
+  }
+
+  async listOwnPostComments(postUrl: string): Promise<PostComment[]> {
+    return sharedPostComments.get(postUrl) ?? [];
+  }
+
+  async replyToComment(
+    postUrl: string,
+    commentId: string,
+    text: string,
+  ): Promise<ActionResult> {
+    sharedReplies.push({ postUrl, commentId, text });
+    return { ok: true, detail: "replied" };
+  }
+
   getMessages() {
     return sharedMessages;
+  }
+
+  getPublished() {
+    return sharedPublished;
   }
 
   static reset() {
     sharedConnected.clear();
     sharedMessages.length = 0;
+    sharedLikes.clear();
+    sharedComments.length = 0;
+    sharedPublished.length = 0;
+    sharedReplies.length = 0;
+    sharedPostComments.clear();
   }
 }
 

@@ -23,3 +23,7 @@ export function getEnrichmentQueue() {
 export function getSchedulerQueue() {
   return new Queue("scheduler-ticks", { connection: getConnection() });
 }
+
+export async function enqueueActionJob(actionJobId: string) {
+  await getLinkedInQueue().add("action", { actionJobId });
+}

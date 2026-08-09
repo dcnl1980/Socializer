@@ -1,9 +1,11 @@
 import { FakeLinkedInActions } from "./fake.js";
-import type { BrowserEngine, LinkedInActions } from "./types.js";
+import { RealLinkedInActions } from "./linkedin-real.js";
+import type { BrowserEngine, BrowserSession, LinkedInActions } from "./types.js";
 
-export function createLinkedInActions(engine: BrowserEngine = "fake"): LinkedInActions {
-  if (engine === "fake") return new FakeLinkedInActions();
-  // Placeholder for Patchright DOM automation against LinkedIn.
-  // Slice 1 ships with fake for tests; real selectors land behind this factory.
-  return new FakeLinkedInActions();
+export function createLinkedInActions(
+  engine: BrowserEngine = "fake",
+  session?: BrowserSession,
+): LinkedInActions {
+  if (engine === "fake" || !session?.page) return new FakeLinkedInActions();
+  return new RealLinkedInActions(session.page as never);
 }

@@ -1,6 +1,5 @@
 import { createCopyWriter } from "@socializer/ai";
 import { createLinkedInActions } from "@socializer/browser";
-import { canSpend } from "@socializer/core";
 import {
   actionJobs,
   auditLogs,
@@ -10,8 +9,10 @@ import {
   type Db,
 } from "@socializer/db";
 import { eq } from "drizzle-orm";
+import { canSpendOutbound, isContentStep } from "../budget.js";
 import type { LeaseStore } from "../lease.js";
 import { acquireSeatLease, releaseSeatLease } from "../lease.js";
+import { processContentJob } from "./content.js";
 
 export type ProcessLinkedInJobInput = {
   db: Db;
@@ -46,12 +47,16 @@ export async function processLinkedInJob(
     return { status: "skipped", detail: `seat_${seat.status}` };
   }
 
-  if (!canSpend(seat.actionsUsedToday, seat.dailyCapPicked)) {
+  if (isContentStep(job.stepType)) {
+    return processContentJob(input);
+  }
+
+  if (!canSpendOutbound(seat)) {
     await db
       .update(actionJobs)
-      .set({ status: "skipped", detail: "daily_cap", finishedAt: new Date() })
+      .set({ status: "skipped", detail: "outbound_cap", finishedAt: new Date() })
       .where(eq(actionJobs.id, job.id));
-    return { status: "skipped", detail: "daily_cap" };
+    return { status: "skipped", detail: "outbound_cap" };
   }
 
   const leased = await acquireSeatLease(store, seat.id, workerId, 60_000);
@@ -160,7 +165,10 @@ export async function processLinkedInJob(
 
     await db
       .update(linkedinSeats)
-      .set({ actionsUsedToday: seat.actionsUsedToday + 1 })
+      .set({
+        actionsUsedToday: seat.actionsUsedToday + 1,
+        actionsUsedOutboundToday: seat.actionsUsedOutboundToday + 1,
+      })
       .where(eq(linkedinSeats.id, seat.id));
 
     await db.insert(auditLogs).values({
