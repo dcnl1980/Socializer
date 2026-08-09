@@ -1,0 +1,163 @@
+:root {
+  --bg: #0f1410;
+  --panel: #1a221c;
+  --ink: #e8f0e9;
+  --muted: #9bb0a0;
+  --accent: #c4f542;
+  --line: #2c3a30;
+  --danger: #ff6b4a;
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  --font-body: "Segoe UI", "Helvetica Neue", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #243528 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #1c2a40 0%, transparent 50%),
+    var(--bg);
+  font-family: var(--font-body);
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(8px);
+}
+
+.brand {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--accent);
+  text-decoration: none;
+  letter-spacing: 0.02em;
+}
+
+nav {
+  display: flex;
+  gap: 1rem;
+}
+
+nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+nav a:hover {
+  color: var(--ink);
+}
+
+.main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem 4rem;
+}
+
+h1 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: clamp(2rem, 4vw, 2.8rem);
+  margin: 0 0 0.5rem;
+}
+
+.lead {
+  color: var(--muted);
+  max-width: 40rem;
+  line-height: 1.5;
+}
+
+.panel {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
+}
+
+.grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--line);
+  background: #101612;
+  color: var(--ink);
+}
+
+button,
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #111;
+  cursor: pointer;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+button.danger {
+  background: transparent;
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.65rem 0.4rem;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.92rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
