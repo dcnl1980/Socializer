@@ -4,6 +4,7 @@ import type {
   BrowserAdapter,
   BrowserSession,
   EnrichmentActions,
+  InboxReply,
   LinkedInActions,
   OpenSeatSessionInput,
   PostComment,
@@ -42,9 +43,24 @@ const sharedFeed: TrendPost[] = [
 const sharedPostComments = new Map<string, PostComment[]>();
 const sharedReplies: Array<{ postUrl: string; commentId: string; text: string }> =
   [];
+const sharedInbox: InboxReply[] = [];
+let warmed = false;
 
 export class FakeLinkedInActions implements LinkedInActions {
   autoAccept = true;
+
+  async loginAndWarm(email: string, _password: string): Promise<ActionResult> {
+    warmed = true;
+    return { ok: true, detail: `warmed:${email}` };
+  }
+
+  async detectReplies(): Promise<InboxReply[]> {
+    return [...sharedInbox];
+  }
+
+  static pushInboxReply(reply: InboxReply) {
+    sharedInbox.push(reply);
+  }
 
   async connect(profileUrl: string, note?: string): Promise<ActionResult> {
     if (this.autoAccept) sharedConnected.add(profileUrl);
@@ -172,6 +188,12 @@ export class FakeLinkedInActions implements LinkedInActions {
     sharedPublished.length = 0;
     sharedReplies.length = 0;
     sharedPostComments.clear();
+    sharedInbox.length = 0;
+    warmed = false;
+  }
+
+  static isWarmed() {
+    return warmed;
   }
 }
 

@@ -1,4 +1,11 @@
-import type { ActionResult, LinkedInActions, PageLike, PostComment, TrendPost } from "./types.js";
+import type {
+  ActionResult,
+  InboxReply,
+  LinkedInActions,
+  PageLike,
+  PostComment,
+  TrendPost,
+} from "./types.js";
 
 /**
  * Patchright-backed LinkedIn actions.
@@ -10,6 +17,36 @@ export class RealLinkedInActions implements LinkedInActions {
 
   private async goto(url: string) {
     await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 45_000 });
+  }
+
+  async loginAndWarm(email: string, password: string): Promise<ActionResult> {
+    await this.goto("https://www.linkedin.com/login");
+    const user = this.page.locator?.("#username, input[name='session_key']");
+    const pass = this.page.locator?.("#password, input[name='session_password']");
+    if (!user || !pass) return { ok: false, detail: "login_form_missing" };
+    await user.first().fill(email);
+    await pass.first().fill(password);
+    const submit = this.page.getByRole?.("button", { name: /sign in/i });
+    if (submit) await submit.first().click();
+    await this.goto("https://www.linkedin.com/feed/");
+    return { ok: true, detail: "warmed" };
+  }
+
+  async detectReplies(): Promise<InboxReply[]> {
+    await this.goto("https://www.linkedin.com/messaging/");
+    const rows = this.page.locator?.(".msg-conversation-listitem");
+    const count = Math.min(20, (await rows?.count?.()) ?? 0);
+    const out: InboxReply[] = [];
+    for (let i = 0; i < count; i++) {
+      const item = rows.nth(i);
+      const text = ((await item.innerText?.()) ?? "").slice(0, 200);
+      out.push({
+        profileUrl: `https://www.linkedin.com/messaging/#${i}`,
+        preview: text,
+        at: new Date().toISOString(),
+      });
+    }
+    return out;
   }
 
   async connect(profileUrl: string, note?: string): Promise<ActionResult> {

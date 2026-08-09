@@ -155,6 +155,10 @@ importers:
       '@socializer/core':
         specifier: workspace:*
         version: link:../core
+    optionalDependencies:
+      nodemailer:
+        specifier: ^6.9.16
+        version: 6.10.1
     devDependencies:
       typescript:
         specifier: ^5.7.3
@@ -1314,6 +1318,10 @@ packages:
     resolution: {integrity: sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw==}
     hasBin: true
 
+  nodemailer@6.10.1:
+    resolution: {integrity: sha512-Z+iLaBGVaSjbIzQ4pX6XV41HrooLsQ10ZWPUehGmuantvzWoDVBnmsdUcOIDM1t+yPor5pDhVlDESgOMEGxhHA==}
+    engines: {node: '>=6.0.0'}
+
   once@1.4.0:
     resolution: {integrity: sha512-lNaJgI+2Q5URQBkccEKHTQOPaXdUxnZZElQTZY0MFUAuaEqe1E+Nyvgdz/aIyNi6Z9MzO5dv1H8n58/GELp3+w==}
 
@@ -2366,6 +2374,9 @@ snapshots:
   node-gyp-build-optional-packages@5.2.2:
     dependencies:
       detect-libc: 2.1.2
+    optional: true
+
+  nodemailer@6.10.1:
     optional: true
 
   once@1.4.0:

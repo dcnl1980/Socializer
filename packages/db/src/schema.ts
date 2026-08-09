@@ -311,6 +311,23 @@ export const crmSyncLogs = pgTable("crm_sync_logs", {
     .notNull(),
 });
 
+export const messageEvents = pgTable("message_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  seatId: uuid("seat_id")
+    .notNull()
+    .references(() => linkedinSeats.id),
+  leadId: uuid("lead_id").references(() => leads.id),
+  direction: text("direction").notNull().default("inbound"),
+  preview: text("preview").notNull(),
+  profileUrl: text("profile_url"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
 export const actionJobs = pgTable("action_jobs", {
   id: uuid("id").defaultRandom().primaryKey(),
   workspaceId: uuid("workspace_id")

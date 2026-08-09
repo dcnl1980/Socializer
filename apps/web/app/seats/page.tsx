@@ -128,6 +128,14 @@ export default function SeatsPage() {
                   <button className="secondary" onClick={() => act(s.id, "resume")}>
                     Resume
                   </button>
+                  <button
+                    className="secondary"
+                    onClick={() =>
+                      void fetch(`/api/seats/${s.id}/warm`, { method: "POST" })
+                    }
+                  >
+                    Warm
+                  </button>
                   <button className="danger" onClick={() => act(s.id, "kill")}>
                     Kill
                   </button>

@@ -1,5 +1,6 @@
 import { createContentWriter } from "@socializer/ai";
 import { createLinkedInActions } from "@socializer/browser";
+import { assertCopyOk } from "@socializer/core";
 import {
   actionJobs,
   auditLogs,
@@ -86,7 +87,7 @@ export async function processContentJob(input: {
       const summary = trends.map((t) => t.text).join(" | ").slice(0, 400);
       const draft = await writer.draftPost({ niche, trendSummary: summary, brandVoice });
       prompt = draft.prompt;
-      aiOutput = draft.text;
+      aiOutput = assertCopyOk(draft.text, { maxLen: 3000, minLen: 40 });
       const [post] = await db
         .insert(contentPosts)
         .values({
@@ -96,7 +97,7 @@ export async function processContentJob(input: {
           status: "draft",
           topic: summary.slice(0, 120),
           prompt: draft.prompt,
-          body: draft.text,
+          body: aiOutput,
         })
         .returning();
       detail = `drafted:${post!.id}`;

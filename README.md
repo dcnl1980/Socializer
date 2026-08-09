@@ -40,6 +40,15 @@ pnpm --filter @socializer/browser add patchright cloakbrowser
 - Multi-seat rotation via sequence `seatPool`
 - Analytics at `/analytics`
 
+## Slice 4 — Production hardening
+
+- Real SMTP (`SMTP_URL` + optional `nodemailer`) and Hunter-style finder (`EMAIL_FINDER_API_KEY`)
+- HubSpot CRM (`HUBSPOT_ACCESS_TOKEN`) or webhook fallback
+- Optional app auth (`AUTH_PASSWORD`) → `/login`
+- Seat **Warm** + inbox reply polling (`/inbox`)
+- AI copy quality filters (banned phrases / length)
+- Ops health: `GET /api/health`
+
 ## Quick start
 
 ```bash

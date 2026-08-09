@@ -7,6 +7,8 @@ export { decryptSecret, encryptSecret } from "./crypto.js";
 export { pickSeat } from "./rotation.js";
 export { summarizeJobs } from "./analytics.js";
 export type { AnalyticsSummary } from "./analytics.js";
+export { assertCopyOk, validateCopy } from "./quality.js";
+export type { QualityIssue } from "./quality.js";
 export type {
   EnrollmentSnapshot,
   NextAction,

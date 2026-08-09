@@ -39,7 +39,15 @@ export type PostComment = {
   text: string;
 };
 
+export type InboxReply = {
+  profileUrl: string;
+  preview: string;
+  at: string;
+};
+
 export interface LinkedInActions {
+  loginAndWarm(email: string, password: string): Promise<ActionResult>;
+  detectReplies(): Promise<InboxReply[]>;
   connect(profileUrl: string, note?: string): Promise<ActionResult>;
   message(profileUrl: string, body: string): Promise<ActionResult>;
   isConnected(profileUrl: string): Promise<boolean>;

@@ -4,6 +4,7 @@ export type {
   BrowserEngine,
   BrowserSession,
   EnrichmentActions,
+  InboxReply,
   LinkedInActions,
   OpenSeatSessionInput,
   PageLike,

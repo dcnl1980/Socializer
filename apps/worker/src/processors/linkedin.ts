@@ -1,5 +1,6 @@
 import { createCopyWriter } from "@socializer/ai";
 import { createLinkedInActions } from "@socializer/browser";
+import { assertCopyOk } from "@socializer/core";
 import { createCrmAdapter } from "@socializer/crm";
 import {
   actionJobs,
@@ -17,6 +18,7 @@ import { canSpendOutbound, isContentStep } from "../budget.js";
 import type { LeaseStore } from "../lease.js";
 import { acquireSeatLease, releaseSeatLease } from "../lease.js";
 import { processContentJob } from "./content.js";
+import { processInboxPoll, processSeatWarm } from "./inbox.js";
 
 export type ProcessLinkedInJobInput = {
   db: Db;
@@ -87,6 +89,40 @@ export async function processLinkedInJob(
 
   if (isContentStep(job.stepType)) {
     return processContentJob(input);
+  }
+
+  if (job.stepType === "inbox_poll") {
+    const result = await processInboxPoll({ db, seatId: seat.id });
+    await db
+      .update(actionJobs)
+      .set({
+        status: "succeeded",
+        detail: `replies:${result.replies}`,
+        finishedAt: new Date(),
+      })
+      .where(eq(actionJobs.id, job.id));
+    return { status: "succeeded", detail: `replies:${result.replies}` };
+  }
+
+  if (job.stepType === "seat_warm") {
+    const password = job.detail ?? "";
+    const result = await processSeatWarm({
+      db,
+      seatId: seat.id,
+      password,
+    });
+    await db
+      .update(actionJobs)
+      .set({
+        status: result.ok ? "succeeded" : "failed",
+        detail: result.detail,
+        finishedAt: new Date(),
+      })
+      .where(eq(actionJobs.id, job.id));
+    return {
+      status: result.ok ? "succeeded" : "failed",
+      detail: result.detail,
+    };
   }
 
   if (!canSpendOutbound(seat)) {
@@ -160,8 +196,8 @@ export async function processLinkedInJob(
       case "comment_recent_post": {
         const copy = await writer.leadComment(leadCtx);
         prompt = copy.prompt;
-        aiOutput = copy.text;
-        const result = await li.commentRecentLeadPost(lead!.linkedinUrl, copy.text);
+        aiOutput = assertCopyOk(copy.text, { maxLen: 500, minLen: 10 });
+        const result = await li.commentRecentLeadPost(lead!.linkedinUrl, aiOutput);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
         break;
@@ -169,8 +205,8 @@ export async function processLinkedInJob(
       case "connect": {
         const copy = await writer.inviteNote(leadCtx);
         prompt = copy.prompt;
-        aiOutput = copy.text;
-        const result = await li.connect(lead!.linkedinUrl, copy.text);
+        aiOutput = assertCopyOk(copy.text, { maxLen: 300, minLen: 10 });
+        const result = await li.connect(lead!.linkedinUrl, aiOutput);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
         if (job.enrollmentId) {
@@ -189,7 +225,7 @@ export async function processLinkedInJob(
       case "message": {
         const copy = await writer.followUpMessage(leadCtx);
         prompt = copy.prompt;
-        aiOutput = copy.text;
+        aiOutput = assertCopyOk(copy.text, { maxLen: 1200, minLen: 20 });
         if (!(await li.isConnected(lead!.linkedinUrl))) {
           await db
             .update(actionJobs)
@@ -203,7 +239,7 @@ export async function processLinkedInJob(
             .where(eq(actionJobs.id, job.id));
           return { status: "skipped", detail: "not_connected" };
         }
-        const result = await li.message(lead!.linkedinUrl, copy.text);
+        const result = await li.message(lead!.linkedinUrl, aiOutput);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
         if (job.enrollmentId) {
@@ -218,8 +254,8 @@ export async function processLinkedInJob(
       case "inmail": {
         const copy = await writer.inMail(leadCtx);
         prompt = copy.prompt;
-        aiOutput = copy.text;
-        const result = await li.sendInMail(lead!.linkedinUrl, copy.subject, copy.text);
+        aiOutput = assertCopyOk(copy.text, { maxLen: 1900, minLen: 20 });
+        const result = await li.sendInMail(lead!.linkedinUrl, copy.subject, aiOutput);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
         await syncCrm(db, job.workspaceId, lead!, "inmail_succeeded");
@@ -234,8 +270,8 @@ export async function processLinkedInJob(
           niche: "B2B",
         });
         prompt = copy.prompt;
-        aiOutput = copy.text;
-        const result = await li.groupEngage(groupUrl, copy.text);
+        aiOutput = assertCopyOk(copy.text, { maxLen: 1200, minLen: 20 });
+        const result = await li.groupEngage(groupUrl, aiOutput);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
         break;
@@ -262,11 +298,11 @@ export async function processLinkedInJob(
         if (!lead?.email) throw new Error("email_missing");
         const copy = await writer.email(leadCtx);
         prompt = copy.prompt;
-        aiOutput = copy.text;
+        aiOutput = assertCopyOk(copy.text, { maxLen: 4000, minLen: 20 });
         const sent = await emailSender.send({
           to: lead.email,
           subject: copy.subject,
-          body: copy.text,
+          body: aiOutput,
         });
         if (!sent.ok) throw new Error(sent.detail);
         await db.insert(emailMessages).values({
