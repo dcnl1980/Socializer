@@ -1,0 +1,371 @@
+import {
+  boolean,
+  integer,
+  jsonb,
+  pgEnum,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+} from "drizzle-orm/pg-core";
+
+export const seatStatusEnum = pgEnum("seat_status", [
+  "healthy",
+  "needs_2fa",
+  "restricted",
+  "paused",
+]);
+
+export const jobStatusEnum = pgEnum("job_status", [
+  "queued",
+  "running",
+  "succeeded",
+  "failed",
+  "skipped",
+  "cancelled",
+]);
+
+export const enrollmentStatusEnum = pgEnum("enrollment_status", [
+  "active",
+  "completed",
+  "stopped",
+  "paused",
+]);
+
+export const campaignTypeEnum = pgEnum("campaign_type", ["outbound", "content"]);
+
+export const browserEngineEnum = pgEnum("browser_engine", [
+  "patchright",
+  "cloakbrowser",
+  "fake",
+]);
+
+export const workspaces = pgTable("workspaces", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  email: text("email").notNull(),
+  role: text("role").notNull().default("admin"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const proxies = pgTable("proxies", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  label: text("label").notNull(),
+  serverUrl: text("server_url").notNull(),
+  geo: text("geo"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const linkedinSeats = pgTable("linkedin_seats", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  label: text("label").notNull(),
+  linkedinEmail: text("linkedin_email").notNull(),
+  credentialsEncrypted: text("credentials_encrypted").notNull(),
+  proxyId: uuid("proxy_id")
+    .notNull()
+    .references(() => proxies.id),
+  timezone: text("timezone").notNull().default("UTC"),
+  status: seatStatusEnum("status").notNull().default("paused"),
+  browserEngine: browserEngineEnum("browser_engine")
+    .notNull()
+    .default("fake"),
+  killSwitch: boolean("kill_switch").notNull().default(false),
+  dailyCapMin: integer("daily_cap_min").notNull().default(10),
+  dailyCapMax: integer("daily_cap_max").notNull().default(20),
+  actionsUsedToday: integer("actions_used_today").notNull().default(0),
+  actionsUsedOutboundToday: integer("actions_used_outbound_today")
+    .notNull()
+    .default(0),
+  actionsUsedContentToday: integer("actions_used_content_today")
+    .notNull()
+    .default(0),
+  outboundBudgetPercent: integer("outbound_budget_percent").notNull().default(60),
+  dailyCapPicked: integer("daily_cap_picked").notNull().default(15),
+  capDay: text("cap_day"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const leads = pgTable("leads", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  linkedinUrl: text("linkedin_url").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  title: text("title"),
+  company: text("company"),
+  domain: text("domain"),
+  email: text("email"),
+  enrichmentStatus: text("enrichment_status").notNull().default("none"),
+  customFields: jsonb("custom_fields").$type<Record<string, string>>(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const lists = pgTable("lists", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const listLeads = pgTable("list_leads", {
+  listId: uuid("list_id")
+    .notNull()
+    .references(() => lists.id),
+  leadId: uuid("lead_id")
+    .notNull()
+    .references(() => leads.id),
+});
+
+export const campaigns = pgTable("campaigns", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  name: text("name").notNull(),
+  type: campaignTypeEnum("type").notNull().default("outbound"),
+  seatId: uuid("seat_id").references(() => linkedinSeats.id),
+  config: jsonb("config")
+    .$type<{
+      keywords?: string[];
+      brandVoice?: string;
+      niche?: string;
+    }>()
+    .notNull()
+    .default({}),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const contentPostStatusEnum = pgEnum("content_post_status", [
+  "draft",
+  "scheduled",
+  "published",
+  "failed",
+]);
+
+export const contentPosts = pgTable("content_posts", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  campaignId: uuid("campaign_id")
+    .notNull()
+    .references(() => campaigns.id),
+  seatId: uuid("seat_id")
+    .notNull()
+    .references(() => linkedinSeats.id),
+  status: contentPostStatusEnum("status").notNull().default("draft"),
+  topic: text("topic"),
+  prompt: text("prompt"),
+  body: text("body"),
+  postUrl: text("post_url"),
+  metrics: jsonb("metrics").$type<Record<string, number>>().default({}),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+});
+
+export const trendSnapshots = pgTable("trend_snapshots", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  seatId: uuid("seat_id")
+    .notNull()
+    .references(() => linkedinSeats.id),
+  campaignId: uuid("campaign_id").references(() => campaigns.id),
+  keyword: text("keyword").notNull(),
+  payload: jsonb("payload")
+    .$type<Array<{ url: string; text: string; reactions: number; comments: number }>>()
+    .notNull()
+    .default([]),
+  score: integer("score").notNull().default(0),
+  capturedAt: timestamp("captured_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const sequences = pgTable("sequences", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  campaignId: uuid("campaign_id").references(() => campaigns.id),
+  name: text("name").notNull(),
+  seatId: uuid("seat_id")
+    .notNull()
+    .references(() => linkedinSeats.id),
+  seatPool: jsonb("seat_pool").$type<string[]>().notNull().default([]),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const sequenceSteps = pgTable("sequence_steps", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sequenceId: uuid("sequence_id")
+    .notNull()
+    .references(() => sequences.id),
+  idx: integer("idx").notNull(),
+  type: text("type").notNull(),
+  config: jsonb("config")
+    .$type<Record<string, unknown>>()
+    .notNull()
+    .default({}),
+});
+
+export const enrollments = pgTable("enrollments", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  sequenceId: uuid("sequence_id")
+    .notNull()
+    .references(() => sequences.id),
+  leadId: uuid("lead_id")
+    .notNull()
+    .references(() => leads.id),
+  assignedSeatId: uuid("assigned_seat_id").references(() => linkedinSeats.id),
+  stepIndex: integer("step_index").notNull().default(0),
+  status: enrollmentStatusEnum("status").notNull().default("active"),
+  connected: boolean("connected").notNull().default(false),
+  replied: boolean("replied").notNull().default(false),
+  lastStepCompletedAt: timestamp("last_step_completed_at", {
+    withTimezone: true,
+  }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const emailMessages = pgTable("email_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  leadId: uuid("lead_id").references(() => leads.id),
+  actionJobId: uuid("action_job_id"),
+  toAddress: text("to_address").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  status: text("status").notNull().default("queued"),
+  providerId: text("provider_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const crmConnections = pgTable("crm_connections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  provider: text("provider").notNull().default("webhook"),
+  webhookUrl: text("webhook_url"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const crmSyncLogs = pgTable("crm_sync_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  leadId: uuid("lead_id").references(() => leads.id),
+  event: text("event").notNull(),
+  detail: text("detail").notNull(),
+  ok: boolean("ok").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const messageEvents = pgTable("message_events", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  seatId: uuid("seat_id")
+    .notNull()
+    .references(() => linkedinSeats.id),
+  leadId: uuid("lead_id").references(() => leads.id),
+  direction: text("direction").notNull().default("inbound"),
+  preview: text("preview").notNull(),
+  profileUrl: text("profile_url"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const actionJobs = pgTable("action_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  seatId: uuid("seat_id")
+    .notNull()
+    .references(() => linkedinSeats.id),
+  enrollmentId: uuid("enrollment_id").references(() => enrollments.id),
+  leadId: uuid("lead_id").references(() => leads.id),
+  contentPostId: uuid("content_post_id").references(() => contentPosts.id),
+  campaignId: uuid("campaign_id").references(() => campaigns.id),
+  stepType: text("step_type").notNull(),
+  status: jobStatusEnum("status").notNull().default("queued"),
+  scheduledAt: timestamp("scheduled_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+  detail: text("detail"),
+  prompt: text("prompt"),
+  aiOutput: text("ai_output"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const auditLogs = pgTable("audit_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  seatId: uuid("seat_id").references(() => linkedinSeats.id),
+  actionJobId: uuid("action_job_id").references(() => actionJobs.id),
+  level: text("level").notNull().default("info"),
+  message: text("message").notNull(),
+  meta: jsonb("meta").$type<Record<string, unknown>>(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});

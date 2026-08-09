@@ -158,9 +158,13 @@ Includes:
 
 Trend scout → AI write → publish → boost related posts → auto-reply to comments → engagement scorecard → feed winners back into topic picker. Shares seat caps with outbound.
 
-### Slice 3+ — Full kitchen sink
+### Slice 3 — Full kitchen sink
 
 Lead-targeted likes/comments/follows/endorsements, InMail, groups, multichannel email send, CRM sync, multi-seat rotation in one campaign, richer analytics.
+
+### Slice 4 — Production hardening
+
+Real SMTP + paid email-finder API, HubSpot CRM adapter, simple internal auth, LinkedIn login/session warm + reply/inbox detection, AI copy quality filters, and ops health endpoints. Fake/no-network defaults remain for CI.
 
 ## 9. Error handling
 

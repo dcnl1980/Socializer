@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Socializer Capture",
+  "version": "0.1.0",
+  "description": "Save LinkedIn profiles to Socializer lists (capture only).",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://www.linkedin.com/*", "http://localhost:3000/*"],
+  "action": {
+    "default_title": "Socializer",
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
