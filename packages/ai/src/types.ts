@@ -29,3 +29,10 @@ export interface ContentWriter {
     niche: string;
   }): Promise<CopyResult>;
 }
+
+export interface OutreachCopyWriter extends CopyWriter {
+  inMail(lead: LeadCopyContext): Promise<CopyResult & { subject: string }>;
+  groupPost(input: { topic: string; niche: string }): Promise<CopyResult>;
+  leadComment(lead: LeadCopyContext): Promise<CopyResult>;
+  email(lead: LeadCopyContext): Promise<CopyResult & { subject: string }>;
+}

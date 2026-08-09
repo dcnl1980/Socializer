@@ -59,6 +59,65 @@ export class RealLinkedInActions implements LinkedInActions {
     return { ok: true, detail: "withdrawn" };
   }
 
+  async profileVisit(profileUrl: string): Promise<ActionResult> {
+    await this.goto(profileUrl);
+    return { ok: true, detail: "visited" };
+  }
+
+  async follow(profileUrl: string): Promise<ActionResult> {
+    await this.goto(profileUrl);
+    const follow = this.page.getByRole?.("button", { name: /^follow$/i });
+    if (!follow) return { ok: false, detail: "follow_missing" };
+    await follow.first().click();
+    return { ok: true, detail: "followed" };
+  }
+
+  async endorseSkill(profileUrl: string, skillName = "Leadership"): Promise<ActionResult> {
+    await this.goto(`${profileUrl}details/skills/`);
+    const endorse = this.page.getByRole?.("button", { name: new RegExp(`endorse.*${skillName}`, "i") });
+    if (endorse) await endorse.first().click();
+    return { ok: true, detail: `endorsed:${skillName}` };
+  }
+
+  async sendInMail(profileUrl: string, subject: string, body: string): Promise<ActionResult> {
+    await this.goto(profileUrl);
+    const more = this.page.getByRole?.("button", { name: /more/i });
+    if (more) await more.first().click();
+    const inmail = this.page.getByRole?.("menuitem", { name: /message|inmail/i });
+    if (inmail) await inmail.first().click();
+    const subjectBox = this.page.locator?.('input[name="subject"], input[placeholder*="Subject"]');
+    if (subjectBox) await subjectBox.first().fill(subject);
+    const box = this.page.locator?.(".ql-editor, textarea");
+    if (box) await box.first().fill(body);
+    const send = this.page.getByRole?.("button", { name: /send/i });
+    if (send) await send.first().click();
+    return { ok: true, detail: "inmail_sent" };
+  }
+
+  async groupEngage(groupUrl: string, text: string): Promise<ActionResult> {
+    await this.goto(groupUrl);
+    const start = this.page.getByRole?.("button", { name: /start a post|write/i });
+    if (start) await start.first().click();
+    const box = this.page.locator?.(".ql-editor, textarea");
+    if (box) await box.first().fill(text);
+    const post = this.page.getByRole?.("button", { name: /^post$/i });
+    if (post) await post.first().click();
+    return { ok: true, detail: "group_posted" };
+  }
+
+  async likeRecentLeadPost(profileUrl: string): Promise<ActionResult> {
+    await this.goto(`${profileUrl}recent-activity/all/`);
+    const like = this.page.getByRole?.("button", { name: /like/i });
+    if (!like) return { ok: false, detail: "no_recent_post" };
+    await like.first().click();
+    return { ok: true, detail: "liked_recent" };
+  }
+
+  async commentRecentLeadPost(profileUrl: string, text: string): Promise<ActionResult> {
+    await this.goto(`${profileUrl}recent-activity/all/`);
+    return this.commentOnPost(profileUrl, text);
+  }
+
   async likePost(postUrl: string): Promise<ActionResult> {
     await this.goto(postUrl);
     const like = this.page.getByRole?.("button", { name: /like/i });

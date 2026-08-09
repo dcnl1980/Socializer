@@ -1,13 +1,17 @@
 import { createCopyWriter } from "@socializer/ai";
 import { createLinkedInActions } from "@socializer/browser";
+import { createCrmAdapter } from "@socializer/crm";
 import {
   actionJobs,
   auditLogs,
+  crmSyncLogs,
+  emailMessages,
   enrollments,
   leads,
   linkedinSeats,
   type Db,
 } from "@socializer/db";
+import { createEmailFinder, createEmailSender } from "@socializer/email";
 import { eq } from "drizzle-orm";
 import { canSpendOutbound, isContentStep } from "../budget.js";
 import type { LeaseStore } from "../lease.js";
@@ -20,6 +24,40 @@ export type ProcessLinkedInJobInput = {
   workerId: string;
   actionJobId: string;
 };
+
+async function syncCrm(
+  db: Db,
+  workspaceId: string,
+  lead: {
+    id: string;
+    linkedinUrl: string;
+    email: string | null;
+    firstName: string | null;
+    lastName: string | null;
+    company: string | null;
+  },
+  event: string,
+) {
+  const crm = createCrmAdapter();
+  const result = await crm.syncLead(
+    {
+      id: lead.id,
+      linkedinUrl: lead.linkedinUrl,
+      email: lead.email,
+      firstName: lead.firstName,
+      lastName: lead.lastName,
+      company: lead.company,
+    },
+    event,
+  );
+  await db.insert(crmSyncLogs).values({
+    workspaceId,
+    leadId: lead.id,
+    event,
+    detail: result.detail,
+    ok: result.ok,
+  });
+}
 
 export async function processLinkedInJob(
   input: ProcessLinkedInJobInput,
@@ -72,6 +110,8 @@ export async function processLinkedInJob(
   try {
     const li = createLinkedInActions(seat.browserEngine);
     const writer = createCopyWriter();
+    const emailSender = createEmailSender();
+    const emailFinder = createEmailFinder();
     let detail = "";
     let prompt: string | null = null;
     let aiOutput: string | null = null;
@@ -80,76 +120,182 @@ export async function processLinkedInJob(
       ? await db.select().from(leads).where(eq(leads.id, job.leadId)).limit(1)
       : [undefined];
 
-    if (!lead?.linkedinUrl && job.stepType !== "withdraw_invite") {
-      throw new Error("lead_missing");
-    }
+    const needsLead = ![
+      "withdraw_invite",
+      "group_engage",
+    ].includes(job.stepType);
+    if (needsLead && !lead?.linkedinUrl) throw new Error("lead_missing");
 
-    if (job.stepType === "connect") {
-      const copy = await writer.inviteNote({
-        firstName: lead!.firstName ?? "there",
-        title: lead!.title,
-        company: lead!.company,
-      });
-      prompt = copy.prompt;
-      aiOutput = copy.text;
-      const result = await li.connect(lead!.linkedinUrl, copy.text);
-      detail = result.detail;
-      if (!result.ok) throw new Error(result.detail);
-      if (job.enrollmentId) {
-        await db
-          .update(enrollments)
-          .set({
-            connected: await li.isConnected(lead!.linkedinUrl),
-            stepIndex: 1,
-            lastStepCompletedAt: new Date(),
-          })
-          .where(eq(enrollments.id, job.enrollmentId));
+    const leadCtx = {
+      firstName: lead?.firstName ?? "there",
+      title: lead?.title,
+      company: lead?.company,
+    };
+
+    switch (job.stepType) {
+      case "profile_visit": {
+        const result = await li.profileVisit(lead!.linkedinUrl);
+        detail = result.detail;
+        if (!result.ok) throw new Error(result.detail);
+        break;
       }
-    } else if (job.stepType === "message") {
-      const copy = await writer.followUpMessage({
-        firstName: lead!.firstName ?? "there",
-        title: lead!.title,
-        company: lead!.company,
-      });
-      prompt = copy.prompt;
-      aiOutput = copy.text;
-      const connected = await li.isConnected(lead!.linkedinUrl);
-      if (!connected) {
+      case "follow": {
+        const result = await li.follow(lead!.linkedinUrl);
+        detail = result.detail;
+        if (!result.ok) throw new Error(result.detail);
+        break;
+      }
+      case "endorse_skill": {
+        const result = await li.endorseSkill(lead!.linkedinUrl);
+        detail = result.detail;
+        if (!result.ok) throw new Error(result.detail);
+        break;
+      }
+      case "like_recent_post": {
+        const result = await li.likeRecentLeadPost(lead!.linkedinUrl);
+        detail = result.detail;
+        if (!result.ok) throw new Error(result.detail);
+        break;
+      }
+      case "comment_recent_post": {
+        const copy = await writer.leadComment(leadCtx);
+        prompt = copy.prompt;
+        aiOutput = copy.text;
+        const result = await li.commentRecentLeadPost(lead!.linkedinUrl, copy.text);
+        detail = result.detail;
+        if (!result.ok) throw new Error(result.detail);
+        break;
+      }
+      case "connect": {
+        const copy = await writer.inviteNote(leadCtx);
+        prompt = copy.prompt;
+        aiOutput = copy.text;
+        const result = await li.connect(lead!.linkedinUrl, copy.text);
+        detail = result.detail;
+        if (!result.ok) throw new Error(result.detail);
+        if (job.enrollmentId) {
+          await db
+            .update(enrollments)
+            .set({
+              connected: await li.isConnected(lead!.linkedinUrl),
+              stepIndex: 1,
+              lastStepCompletedAt: new Date(),
+            })
+            .where(eq(enrollments.id, job.enrollmentId));
+        }
+        await syncCrm(db, job.workspaceId, lead!, "connect_succeeded");
+        break;
+      }
+      case "message": {
+        const copy = await writer.followUpMessage(leadCtx);
+        prompt = copy.prompt;
+        aiOutput = copy.text;
+        if (!(await li.isConnected(lead!.linkedinUrl))) {
+          await db
+            .update(actionJobs)
+            .set({
+              status: "skipped",
+              detail: "not_connected",
+              finishedAt: new Date(),
+              prompt,
+              aiOutput,
+            })
+            .where(eq(actionJobs.id, job.id));
+          return { status: "skipped", detail: "not_connected" };
+        }
+        const result = await li.message(lead!.linkedinUrl, copy.text);
+        detail = result.detail;
+        if (!result.ok) throw new Error(result.detail);
+        if (job.enrollmentId) {
+          await db
+            .update(enrollments)
+            .set({ lastStepCompletedAt: new Date() })
+            .where(eq(enrollments.id, job.enrollmentId));
+        }
+        await syncCrm(db, job.workspaceId, lead!, "message_succeeded");
+        break;
+      }
+      case "inmail": {
+        const copy = await writer.inMail(leadCtx);
+        prompt = copy.prompt;
+        aiOutput = copy.text;
+        const result = await li.sendInMail(lead!.linkedinUrl, copy.subject, copy.text);
+        detail = result.detail;
+        if (!result.ok) throw new Error(result.detail);
+        await syncCrm(db, job.workspaceId, lead!, "inmail_succeeded");
+        break;
+      }
+      case "group_engage": {
+        const groupUrl =
+          (job.detail && job.detail.startsWith("http") ? job.detail : null) ??
+          "https://www.linkedin.com/groups/";
+        const copy = await writer.groupPost({
+          topic: "pipeline systems",
+          niche: "B2B",
+        });
+        prompt = copy.prompt;
+        aiOutput = copy.text;
+        const result = await li.groupEngage(groupUrl, copy.text);
+        detail = result.detail;
+        if (!result.ok) throw new Error(result.detail);
+        break;
+      }
+      case "find_email": {
+        if (!lead?.domain) throw new Error("domain_missing");
+        const found = await emailFinder.find({
+          firstName: lead.firstName ?? "info",
+          lastName: lead.lastName ?? "contact",
+          domain: lead.domain,
+        });
+        const email = found[0] ?? null;
+        await db
+          .update(leads)
+          .set({
+            email,
+            enrichmentStatus: email ? "found_api" : "not_found",
+          })
+          .where(eq(leads.id, lead.id));
+        detail = email ? `found:${email}` : "not_found";
+        break;
+      }
+      case "send_email": {
+        if (!lead?.email) throw new Error("email_missing");
+        const copy = await writer.email(leadCtx);
+        prompt = copy.prompt;
+        aiOutput = copy.text;
+        const sent = await emailSender.send({
+          to: lead.email,
+          subject: copy.subject,
+          body: copy.text,
+        });
+        if (!sent.ok) throw new Error(sent.detail);
+        await db.insert(emailMessages).values({
+          workspaceId: job.workspaceId,
+          leadId: lead.id,
+          actionJobId: job.id,
+          toAddress: lead.email,
+          subject: copy.subject,
+          body: copy.text,
+          status: "sent",
+          providerId: sent.id,
+        });
+        detail = sent.detail;
+        await syncCrm(db, job.workspaceId, lead, "email_succeeded");
+        break;
+      }
+      case "withdraw_invite": {
+        const result = await li.withdrawOldestPending();
+        detail = result.detail;
+        break;
+      }
+      default: {
+        detail = `unsupported_${job.stepType}`;
         await db
           .update(actionJobs)
-          .set({
-            status: "skipped",
-            detail: "not_connected",
-            finishedAt: new Date(),
-            prompt,
-            aiOutput,
-          })
+          .set({ status: "skipped", detail, finishedAt: new Date() })
           .where(eq(actionJobs.id, job.id));
-        return { status: "skipped", detail: "not_connected" };
+        return { status: "skipped", detail };
       }
-      const result = await li.message(lead!.linkedinUrl, copy.text);
-      detail = result.detail;
-      if (!result.ok) throw new Error(result.detail);
-      if (job.enrollmentId) {
-        await db
-          .update(enrollments)
-          .set({
-            stepIndex: 4,
-            status: "completed",
-            lastStepCompletedAt: new Date(),
-          })
-          .where(eq(enrollments.id, job.enrollmentId));
-      }
-    } else if (job.stepType === "withdraw_invite") {
-      const result = await li.withdrawOldestPending();
-      detail = result.detail;
-    } else {
-      detail = `unsupported_${job.stepType}`;
-      await db
-        .update(actionJobs)
-        .set({ status: "skipped", detail, finishedAt: new Date() })
-        .where(eq(actionJobs.id, job.id));
-      return { status: "skipped", detail };
     }
 
     await db

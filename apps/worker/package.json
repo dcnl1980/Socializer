@@ -13,7 +13,9 @@
     "@socializer/ai": "workspace:*",
     "@socializer/browser": "workspace:*",
     "@socializer/core": "workspace:*",
+    "@socializer/crm": "workspace:*",
     "@socializer/db": "workspace:*",
+    "@socializer/email": "workspace:*",
     "bullmq": "^4.17.0",
     "drizzle-orm": "^0.39.3",
     "ioredis": "^5.4.2"

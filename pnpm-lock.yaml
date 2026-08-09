@@ -62,9 +62,15 @@ importers:
       '@socializer/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@socializer/crm':
+        specifier: workspace:*
+        version: link:../../packages/crm
       '@socializer/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@socializer/email':
+        specifier: workspace:*
+        version: link:../../packages/email
       bullmq:
         specifier: ^4.17.0
         version: 4.18.3
@@ -116,6 +122,15 @@ importers:
         specifier: ^3.0.5
         version: 3.2.7(@types/node@22.20.1)(tsx@4.23.11)
 
+  packages/crm:
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.7(@types/node@22.20.1)(tsx@4.23.11)
+
   packages/db:
     dependencies:
       drizzle-orm:
@@ -134,6 +149,19 @@ importers:
       typescript:
         specifier: ^5.7.3
         version: 5.9.3
+
+  packages/email:
+    dependencies:
+      '@socializer/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      typescript:
+        specifier: ^5.7.3
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.5
+        version: 3.2.7(@types/node@22.20.1)(tsx@4.23.11)
 
 packages:
 

@@ -1,5 +1,6 @@
-import { enrollments, listLeads } from "@socializer/db";
-import { eq } from "drizzle-orm";
+import { pickSeat } from "@socializer/core";
+import { enrollments, linkedinSeats, listLeads, sequences } from "@socializer/db";
+import { eq, inArray } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
@@ -16,6 +17,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
   const db = getDb();
+  const [sequence] = await db
+    .select()
+    .from(sequences)
+    .where(eq(sequences.id, parsed.data.sequenceId))
+    .limit(1);
+  if (!sequence) {
+    return NextResponse.json({ error: "sequence_not_found" }, { status: 404 });
+  }
+
+  const poolIds =
+    sequence.seatPool?.length > 0 ? sequence.seatPool : [sequence.seatId];
+  const poolSeats = await db
+    .select()
+    .from(linkedinSeats)
+    .where(inArray(linkedinSeats.id, poolIds));
+
   const members = await db
     .select()
     .from(listLeads)
@@ -23,11 +40,27 @@ export async function POST(req: Request) {
 
   const created = [];
   for (const member of members) {
+    const picked = pickSeat(
+      poolSeats.map((s) => ({
+        id: s.id,
+        status: s.status,
+        killSwitch: s.killSwitch,
+        actionsUsedToday: s.actionsUsedToday,
+      })),
+    );
+    const assignedSeatId = picked?.id ?? sequence.seatId;
+    if (picked) {
+      // optimistic bump so next lead rotates
+      const seat = poolSeats.find((s) => s.id === picked.id);
+      if (seat) seat.actionsUsedToday += 1;
+    }
+
     const [row] = await db
       .insert(enrollments)
       .values({
         sequenceId: parsed.data.sequenceId,
         leadId: member.leadId,
+        assignedSeatId,
         status: "active",
         stepIndex: 0,
       })

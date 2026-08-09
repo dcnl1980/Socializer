@@ -6,25 +6,41 @@ type Seat = { id: string; label: string };
 type List = { id: string; name: string };
 type Sequence = { id: string; name: string };
 
-const defaultSteps = [
-  { type: "connect" },
-  { type: "wait", delayMinutes: 0 },
-  {
-    type: "condition",
-    condition: "connected",
-    onTrueNext: 3,
-  },
-  { type: "message" },
-];
+const templates: Record<string, Array<Record<string, unknown>>> = {
+  classic: [
+    { type: "connect" },
+    { type: "wait", delayMinutes: 0 },
+    { type: "condition", condition: "connected", onTrueNext: 3 },
+    { type: "message" },
+  ],
+  warm: [
+    { type: "profile_visit" },
+    { type: "like_recent_post" },
+    { type: "connect" },
+    { type: "wait", delayMinutes: 0 },
+    { type: "condition", condition: "connected", onTrueNext: 5 },
+    { type: "message" },
+  ],
+  multichannel: [
+    { type: "connect" },
+    { type: "find_email" },
+    { type: "wait", delayMinutes: 0 },
+    { type: "condition", condition: "connected", onTrueNext: 4, onFalseNext: 5 },
+    { type: "message" },
+    { type: "send_email" },
+  ],
+};
 
 export default function SequencesPage() {
   const [seats, setSeats] = useState<Seat[]>([]);
   const [lists, setLists] = useState<List[]>([]);
   const [sequences, setSequences] = useState<Sequence[]>([]);
   const [seatId, setSeatId] = useState("");
+  const [seatPool, setSeatPool] = useState<string[]>([]);
   const [listId, setListId] = useState("");
   const [sequenceId, setSequenceId] = useState("");
-  const [name, setName] = useState("Connect then message");
+  const [name, setName] = useState("Warm connect");
+  const [template, setTemplate] = useState("warm");
 
   useEffect(() => {
     void (async () => {
@@ -36,7 +52,10 @@ export default function SequencesPage() {
       setSeats(s.seats ?? []);
       setLists(l.lists ?? []);
       setSequences(seq.sequences ?? []);
-      if (s.seats?.[0]) setSeatId(s.seats[0].id);
+      if (s.seats?.[0]) {
+        setSeatId(s.seats[0].id);
+        setSeatPool(s.seats.map((x: Seat) => x.id));
+      }
       if (l.lists?.[0]) setListId(l.lists[0].id);
       if (seq.sequences?.[0]) setSequenceId(seq.sequences[0].id);
     })();
@@ -47,7 +66,12 @@ export default function SequencesPage() {
     const res = await fetch("/api/sequences", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, seatId, steps: defaultSteps }),
+      body: JSON.stringify({
+        name,
+        seatId,
+        seatPool,
+        steps: templates[template] ?? templates.classic,
+      }),
     });
     const data = await res.json();
     if (data.sequence) {
@@ -69,7 +93,10 @@ export default function SequencesPage() {
   return (
     <>
       <h1>Sequences</h1>
-      <p className="lead">Default Slice 1 path: connect → wait → if connected → message.</p>
+      <p className="lead">
+        Outbound + engagement + multichannel. Seat pool enables rotation across
+        healthy accounts.
+      </p>
       <section className="panel">
         <form className="grid" onSubmit={createSequence}>
           <label>
@@ -77,8 +104,32 @@ export default function SequencesPage() {
             <input value={name} onChange={(e) => setName(e.target.value)} />
           </label>
           <label>
-            Seat
+            Template
+            <select value={template} onChange={(e) => setTemplate(e.target.value)}>
+              <option value="classic">Connect → message</option>
+              <option value="warm">Visit → like → connect → message</option>
+              <option value="multichannel">Connect → email finder → message/email</option>
+            </select>
+          </label>
+          <label>
+            Primary seat
             <select value={seatId} onChange={(e) => setSeatId(e.target.value)}>
+              {seats.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Seat pool (rotation)
+            <select
+              multiple
+              value={seatPool}
+              onChange={(e) =>
+                setSeatPool(Array.from(e.target.selectedOptions, (o) => o.value))
+              }
+            >
               {seats.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.label}

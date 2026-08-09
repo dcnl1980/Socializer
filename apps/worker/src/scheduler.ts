@@ -97,11 +97,13 @@ export async function runSchedulerTick(input: {
       .limit(1);
     if (existing.length > 0) continue;
 
+    const seatId = enrollment.assignedSeatId ?? sequence.seatId;
+
     const [created] = await db
       .insert(actionJobs)
       .values({
         workspaceId: sequence.workspaceId,
-        seatId: sequence.seatId,
+        seatId,
         enrollmentId: enrollment.id,
         leadId: enrollment.leadId,
         stepType: step.type,

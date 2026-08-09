@@ -7,10 +7,17 @@ import { getDefaultWorkspace } from "@/lib/workspace";
 const stepSchema = z.object({
   type: z.enum([
     "profile_visit",
+    "follow",
+    "like_recent_post",
+    "comment_recent_post",
+    "endorse_skill",
     "connect",
     "message",
+    "inmail",
+    "group_engage",
     "withdraw_invite",
     "find_email",
+    "send_email",
     "wait",
     "condition",
   ]),
@@ -18,11 +25,15 @@ const stepSchema = z.object({
   condition: z.enum(["connected", "replied", "has_email"]).optional(),
   onTrueNext: z.number().optional(),
   onFalseNext: z.number().optional(),
+  skillName: z.string().optional(),
+  groupUrl: z.string().optional(),
+  emailSubject: z.string().optional(),
 });
 
 const bodySchema = z.object({
   name: z.string().min(1),
   seatId: z.string().uuid(),
+  seatPool: z.array(z.string().uuid()).optional(),
   steps: z.array(stepSchema).min(1),
 });
 
@@ -44,6 +55,7 @@ export async function POST(req: Request) {
       workspaceId: workspace.id,
       name: parsed.data.name,
       seatId: parsed.data.seatId,
+      seatPool: parsed.data.seatPool ?? [],
     })
     .returning();
 

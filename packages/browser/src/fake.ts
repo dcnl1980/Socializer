@@ -70,6 +70,46 @@ export class FakeLinkedInActions implements LinkedInActions {
     return { ok: true, detail: "withdrawn_none" };
   }
 
+  async profileVisit(profileUrl: string): Promise<ActionResult> {
+    return { ok: true, detail: `visited:${profileUrl}` };
+  }
+
+  async follow(profileUrl: string): Promise<ActionResult> {
+    return { ok: true, detail: `followed:${profileUrl}` };
+  }
+
+  async endorseSkill(profileUrl: string, skillName = "Leadership"): Promise<ActionResult> {
+    return { ok: true, detail: `endorsed:${skillName}` };
+  }
+
+  async sendInMail(
+    profileUrl: string,
+    subject: string,
+    body: string,
+  ): Promise<ActionResult> {
+    sharedMessages.push({ profileUrl, body: `[InMail ${subject}] ${body}` });
+    return { ok: true, detail: "inmail_sent" };
+  }
+
+  async groupEngage(groupUrl: string, text: string): Promise<ActionResult> {
+    return { ok: true, detail: `group_posted:${groupUrl}:${text.slice(0, 24)}` };
+  }
+
+  async likeRecentLeadPost(profileUrl: string): Promise<ActionResult> {
+    const postUrl = `${profileUrl}/recent-activity/`;
+    sharedLikes.add(postUrl);
+    return { ok: true, detail: "liked_recent", postUrl };
+  }
+
+  async commentRecentLeadPost(
+    profileUrl: string,
+    text: string,
+  ): Promise<ActionResult> {
+    const postUrl = `${profileUrl}/recent-activity/`;
+    sharedComments.push({ postUrl, text });
+    return { ok: true, detail: "commented_recent", postUrl };
+  }
+
   async likePost(postUrl: string): Promise<ActionResult> {
     sharedLikes.add(postUrl);
     return { ok: true, detail: "liked" };

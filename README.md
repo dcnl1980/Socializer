@@ -31,6 +31,15 @@ pnpm --filter @socializer/browser add patchright cloakbrowser
 # set seat browserEngine to patchright (LinkedIn) or cloakbrowser (enrichment)
 ```
 
+## Slice 3 — Kitchen sink
+
+- Lead engagement: visit, follow, like/comment recent posts, endorse
+- InMail + group engage
+- Multichannel `find_email` / `send_email` (`@socializer/email`)
+- CRM webhook sync (`CRM_WEBHOOK_URL`, UI at `/settings`)
+- Multi-seat rotation via sequence `seatPool`
+- Analytics at `/analytics`
+
 ## Quick start
 
 ```bash

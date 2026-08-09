@@ -29,6 +29,22 @@ describe("FakeLinkedInActions", () => {
     );
     expect(reply.ok).toBe(true);
   });
+
+  it("supports kitchen-sink engagement actions", async () => {
+    FakeLinkedInActions.reset();
+    const li = new FakeLinkedInActions();
+    const url = "https://www.linkedin.com/in/kai";
+    expect((await li.profileVisit(url)).ok).toBe(true);
+    expect((await li.follow(url)).ok).toBe(true);
+    expect((await li.endorseSkill(url, "Go")).ok).toBe(true);
+    expect((await li.sendInMail(url, "Hi", "Body")).ok).toBe(true);
+    expect((await li.likeRecentLeadPost(url)).ok).toBe(true);
+    expect((await li.commentRecentLeadPost(url, "Nice")).ok).toBe(true);
+    expect(
+      (await li.groupEngage("https://www.linkedin.com/groups/1", "Hello group"))
+        .ok,
+    ).toBe(true);
+  });
 });
 
 describe("FakeEnrichmentActions", () => {

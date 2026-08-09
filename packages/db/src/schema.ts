@@ -227,6 +227,7 @@ export const sequences = pgTable("sequences", {
   seatId: uuid("seat_id")
     .notNull()
     .references(() => linkedinSeats.id),
+  seatPool: jsonb("seat_pool").$type<string[]>().notNull().default([]),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),
@@ -253,6 +254,7 @@ export const enrollments = pgTable("enrollments", {
   leadId: uuid("lead_id")
     .notNull()
     .references(() => leads.id),
+  assignedSeatId: uuid("assigned_seat_id").references(() => linkedinSeats.id),
   stepIndex: integer("step_index").notNull().default(0),
   status: enrollmentStatusEnum("status").notNull().default("active"),
   connected: boolean("connected").notNull().default(false),
@@ -260,6 +262,50 @@ export const enrollments = pgTable("enrollments", {
   lastStepCompletedAt: timestamp("last_step_completed_at", {
     withTimezone: true,
   }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const emailMessages = pgTable("email_messages", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  leadId: uuid("lead_id").references(() => leads.id),
+  actionJobId: uuid("action_job_id"),
+  toAddress: text("to_address").notNull(),
+  subject: text("subject").notNull(),
+  body: text("body").notNull(),
+  status: text("status").notNull().default("queued"),
+  providerId: text("provider_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const crmConnections = pgTable("crm_connections", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  provider: text("provider").notNull().default("webhook"),
+  webhookUrl: text("webhook_url"),
+  enabled: boolean("enabled").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export const crmSyncLogs = pgTable("crm_sync_logs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  workspaceId: uuid("workspace_id")
+    .notNull()
+    .references(() => workspaces.id),
+  leadId: uuid("lead_id").references(() => leads.id),
+  event: text("event").notNull(),
+  detail: text("detail").notNull(),
+  ok: boolean("ok").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true })
     .defaultNow()
     .notNull(),

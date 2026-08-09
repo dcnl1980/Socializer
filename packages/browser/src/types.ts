@@ -44,6 +44,13 @@ export interface LinkedInActions {
   message(profileUrl: string, body: string): Promise<ActionResult>;
   isConnected(profileUrl: string): Promise<boolean>;
   withdrawOldestPending(): Promise<ActionResult>;
+  profileVisit(profileUrl: string): Promise<ActionResult>;
+  follow(profileUrl: string): Promise<ActionResult>;
+  endorseSkill(profileUrl: string, skillName?: string): Promise<ActionResult>;
+  sendInMail(profileUrl: string, subject: string, body: string): Promise<ActionResult>;
+  groupEngage(groupUrl: string, text: string): Promise<ActionResult>;
+  likeRecentLeadPost(profileUrl: string): Promise<ActionResult>;
+  commentRecentLeadPost(profileUrl: string, text: string): Promise<ActionResult>;
   likePost(postUrl: string): Promise<ActionResult>;
   commentOnPost(postUrl: string, text: string): Promise<ActionResult>;
   publishPost(text: string): Promise<ActionResult>;

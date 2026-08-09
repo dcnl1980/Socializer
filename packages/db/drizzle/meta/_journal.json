@@ -15,6 +15,13 @@
       "when": 1786280059128,
       "tag": "0001_sticky_boomer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786286128130,
+      "tag": "0002_keen_mother_askani",
+      "breakpoints": true
     }
   ]
 }
