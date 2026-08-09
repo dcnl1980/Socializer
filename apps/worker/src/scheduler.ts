@@ -7,7 +7,7 @@ import {
   sequences,
   type Db,
 } from "@socializer/db";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Queue } from "bullmq";
 
 export async function runSchedulerTick(input: {
@@ -66,21 +66,30 @@ export async function runSchedulerTick(input: {
     if (decision.type === "stop" || decision.type === "wait") continue;
 
     const step = steps[decision.stepIndex];
-    if (!step || step.type === "wait" || step.type === "condition") {
-      if (step?.type === "wait") {
-        await db
-          .update(enrollments)
-          .set({
-            stepIndex: decision.stepIndex + 1,
-            lastStepCompletedAt: new Date(),
-          })
-          .where(eq(enrollments.id, enrollment.id));
-      } else if (step?.type === "condition") {
-        await db
-          .update(enrollments)
-          .set({ stepIndex: decision.stepIndex })
-          .where(eq(enrollments.id, enrollment.id));
-      }
+    if (!step) continue;
+
+    // Condition jumps land on a different index than enrollment.stepIndex.
+    if (decision.stepIndex !== enrollment.stepIndex) {
+      await db
+        .update(enrollments)
+        .set({ stepIndex: decision.stepIndex })
+        .where(eq(enrollments.id, enrollment.id));
+      enrollment.stepIndex = decision.stepIndex;
+    }
+
+    if (step.type === "wait") {
+      await db
+        .update(enrollments)
+        .set({
+          stepIndex: decision.stepIndex + 1,
+          lastStepCompletedAt: new Date(),
+        })
+        .where(eq(enrollments.id, enrollment.id));
+      continue;
+    }
+
+    if (step.type === "condition") {
+      // nextEnrollmentAction should always rewrite condition indices; keep safe.
       continue;
     }
 
@@ -91,7 +100,7 @@ export async function runSchedulerTick(input: {
         and(
           eq(actionJobs.enrollmentId, enrollment.id),
           eq(actionJobs.stepType, step.type),
-          eq(actionJobs.status, "queued"),
+          inArray(actionJobs.status, ["queued", "running"]),
         ),
       )
       .limit(1);

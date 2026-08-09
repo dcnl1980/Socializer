@@ -61,6 +61,27 @@ async function syncCrm(
   });
 }
 
+async function advanceEnrollment(
+  db: Db,
+  enrollmentId: string,
+  extras: Partial<{ connected: boolean; replied: boolean }> = {},
+) {
+  const [enrollment] = await db
+    .select()
+    .from(enrollments)
+    .where(eq(enrollments.id, enrollmentId))
+    .limit(1);
+  if (!enrollment) return;
+  await db
+    .update(enrollments)
+    .set({
+      stepIndex: enrollment.stepIndex + 1,
+      lastStepCompletedAt: new Date(),
+      ...extras,
+    })
+    .where(eq(enrollments.id, enrollmentId));
+}
+
 export async function processLinkedInJob(
   input: ProcessLinkedInJobInput,
 ): Promise<{ status: string; detail: string }> {
@@ -173,24 +194,28 @@ export async function processLinkedInJob(
         const result = await li.profileVisit(lead!.linkedinUrl);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         break;
       }
       case "follow": {
         const result = await li.follow(lead!.linkedinUrl);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         break;
       }
       case "endorse_skill": {
         const result = await li.endorseSkill(lead!.linkedinUrl);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         break;
       }
       case "like_recent_post": {
         const result = await li.likeRecentLeadPost(lead!.linkedinUrl);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         break;
       }
       case "comment_recent_post": {
@@ -200,6 +225,7 @@ export async function processLinkedInJob(
         const result = await li.commentRecentLeadPost(lead!.linkedinUrl, aiOutput);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         break;
       }
       case "connect": {
@@ -210,14 +236,9 @@ export async function processLinkedInJob(
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
         if (job.enrollmentId) {
-          await db
-            .update(enrollments)
-            .set({
-              connected: await li.isConnected(lead!.linkedinUrl),
-              stepIndex: 1,
-              lastStepCompletedAt: new Date(),
-            })
-            .where(eq(enrollments.id, job.enrollmentId));
+          await advanceEnrollment(db, job.enrollmentId, {
+            connected: await li.isConnected(lead!.linkedinUrl),
+          });
         }
         await syncCrm(db, job.workspaceId, lead!, "connect_succeeded");
         break;
@@ -226,7 +247,21 @@ export async function processLinkedInJob(
         const copy = await writer.followUpMessage(leadCtx);
         prompt = copy.prompt;
         aiOutput = assertCopyOk(copy.text, { maxLen: 1200, minLen: 20 });
-        if (!(await li.isConnected(lead!.linkedinUrl))) {
+        const [enrollment] = job.enrollmentId
+          ? await db
+              .select()
+              .from(enrollments)
+              .where(eq(enrollments.id, job.enrollmentId))
+              .limit(1)
+          : [undefined];
+        // Prefer live LinkedIn state. Fake engine loses in-memory graph on restart;
+        // rehydrate from enrollment.connected so sequences can continue in CI.
+        let connected = await li.isConnected(lead!.linkedinUrl);
+        if (!connected && enrollment?.connected && seat.browserEngine === "fake") {
+          await li.connect(lead!.linkedinUrl);
+          connected = await li.isConnected(lead!.linkedinUrl);
+        }
+        if (!connected) {
           await db
             .update(actionJobs)
             .set({
@@ -237,17 +272,13 @@ export async function processLinkedInJob(
               aiOutput,
             })
             .where(eq(actionJobs.id, job.id));
+          if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
           return { status: "skipped", detail: "not_connected" };
         }
         const result = await li.message(lead!.linkedinUrl, aiOutput);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
-        if (job.enrollmentId) {
-          await db
-            .update(enrollments)
-            .set({ lastStepCompletedAt: new Date() })
-            .where(eq(enrollments.id, job.enrollmentId));
-        }
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         await syncCrm(db, job.workspaceId, lead!, "message_succeeded");
         break;
       }
@@ -258,6 +289,7 @@ export async function processLinkedInJob(
         const result = await li.sendInMail(lead!.linkedinUrl, copy.subject, aiOutput);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         await syncCrm(db, job.workspaceId, lead!, "inmail_succeeded");
         break;
       }
@@ -274,6 +306,7 @@ export async function processLinkedInJob(
         const result = await li.groupEngage(groupUrl, aiOutput);
         detail = result.detail;
         if (!result.ok) throw new Error(result.detail);
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         break;
       }
       case "find_email": {
@@ -292,6 +325,7 @@ export async function processLinkedInJob(
           })
           .where(eq(leads.id, lead.id));
         detail = email ? `found:${email}` : "not_found";
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         break;
       }
       case "send_email": {
@@ -316,12 +350,14 @@ export async function processLinkedInJob(
           providerId: sent.id,
         });
         detail = sent.detail;
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         await syncCrm(db, job.workspaceId, lead, "email_succeeded");
         break;
       }
       case "withdraw_invite": {
         const result = await li.withdrawOldestPending();
         detail = result.detail;
+        if (job.enrollmentId) await advanceEnrollment(db, job.enrollmentId);
         break;
       }
       default: {
